@@ -1,0 +1,30 @@
+name: ailgi
+description: Ailgi - AI 기반 감정 일기 앱
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.2.2
+  table_calendar: ^3.1.2
+  flutter_chat_ui: ^1.6.15
+  flutter_chat_types: ^3.6.2
+  http: ^1.2.2
+  intl: ^0.19.0
+
+  # Firebase 관련
+  firebase_core: ^3.15.2
+  cloud_firestore: ^5.6.12
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

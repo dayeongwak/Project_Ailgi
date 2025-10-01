@@ -58,3 +58,4 @@ app.*.map.json
 /.gradle
 *.iml
 
+lib/api_key.dart

@@ -1,0 +1,67 @@
+name: ailgi_new
+description: Ailgi - AI 기반 감정 일기 앱
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Local Storage (for settings, theme, PIN)
+  shared_preferences: ^2.2.3
+  local_auth: ^2.2.0
+
+  # UI Components
+  table_calendar: ^3.1.2
+  flutter_chat_ui: ^1.6.15  # ✅ 버전 변경
+  flutter_chat_types: ^3.6.2
+  fl_chart: ^0.66.2
+  passcode_screen: ^2.0.1
+
+  # Utilities
+  http: ^1.2.2
+  intl: ^0.19.0
+  timezone: ^0.9.2
+  image_picker: ^1.0.4
+
+  # Speech / Text-to-Speech
+  speech_to_text: ^7.3.0
+  flutter_tts: ^3.8.5
+
+  # Notifications
+  flutter_local_notifications: ^17.2.3
+
+  # Firebase
+  firebase_core: ^3.1.1
+  cloud_firestore: ^5.0.2
+  firebase_auth: ^5.1.1
+  firebase_storage: ^12.1.0
+  google_sign_in: ^6.2.1
+  uuid: ^4.5.1
+  firebase_messaging: ^15.2.10
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # ✅ 에셋 등록 (폴더 등록)
+  assets:
+    - assets/google_logo.png
+    - assets/fonts/ # 💡 assets/fonts 폴더 전체를 등록
+
+  # ✅ 폰트 등록 (memomentKkukkkuk 파일 사용)
+  fonts:
+    - family: MemomentKkuk # settings_page.dart에서 사용할 이름
+      fonts:
+        - asset: assets/fonts/memomentKkukkkuk.ttf
+        - asset: assets/fonts/memomentKkukkkuk.otf

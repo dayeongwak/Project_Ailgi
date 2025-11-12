@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "681278797561",
+    "project_id": "ailgi-3fd88",
+    "storage_bucket": "ailgi-3fd88.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:681278797561:android:e309bc1ef2d2c960035428",
+        "android_client_info": {
+          "package_name": "com.example.ailgi_new"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8-t_rcPyndDKBI-uDRGW2QWU1ABs6Ncc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

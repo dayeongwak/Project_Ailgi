@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:io'; // ✅ [추가] File 클래스 사용을 위해 임포트
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -347,8 +347,27 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  // ✅ [추가] 감정 단어에 맞는 이모지 반환 함수
+  String _getEmojiForEmotion(String emotion) {
+    const map = {
+      "기쁨": "😁", "슬픔": "😢", "화남": "😡", "짜증": "😒", "무기력": "🥱",
+      "불안": "😨", "평온": "😌", "사랑": "😍", "놀람": "😲", "감사": "🤗",
+      "좌절": "😤", "자신감": "😎", "후회": "😔", "혼란": "🤔", "피곤": "😴",
+      "당황": "😕", "외로움": "😭", "만족": "😇", "스트레스": "🤯", "기대": "🤞",
+      "뿌듯": "👏", "긴장": "😬", "충격": "😱", "희망": "🌈", "공허": "🥀",
+      "질투": "🧐", "열정": "🔥", "차분": "🧘", "즐거움": "🎉", "부끄러움": "😳",
+      "실망": "🙁", "설렘": "💓", "존경": "🙏", "분노": "💢", "의욕": "💪",
+      "안정": "🛡️", "환희": "🥳", "동경": "🌠", "초조": "😰", "허무": "😶",
+      "분주": "🏃", "열망": "⚡", "차가움": "🥶", "경악": "🤯", "우울": "😞",
+      "존중": "🤝", "열광": "⚡", "용기": "🦸", "감동": "🥹", "불편": "😣",
+      "무서움": "👻", "반가움": "😊", "후련": "😮‍💨", "평화": "🕊️", "포기": "😞",
+      "기적": "✨", "낭만": "🌹"
+    };
+    return map[emotion] ?? "✨";
+  }
 
-  // ▼▼▼ [수정] _endDiary 함수 (timestamp 추가) ▼▼▼
+
+  // ▼▼▼ [수정] _endDiary 함수 (timestamp 추가 + 감정에 맞는 이모지 적용) ▼▼▼
   Future<void> _endDiary(List<types.Message> currentMessages) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     if (_diaryDocRef == null || _messagesColRef == null) {
@@ -391,10 +410,13 @@ class _ChatPageState extends State<ChatPage> {
       );
       print("✅ DEBUG: Firestore .set() 저장 성공!");
 
+      // ✅ [수정] 감정에 맞는 이모지를 가져와서 메시지에 포함시킴
+      final String emotionEmoji = _getEmojiForEmotion(emotion);
+
       final emotionMsg = types.TextMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         author: _bot,
-        text: "오늘의 감정은 '$emotion'이에요 😊\n$comment",
+        text: "오늘의 감정은 '$emotion' $emotionEmoji 이에요.\n$comment", // ✅ 이모지 추가됨
         createdAt: DateTime.now().millisecondsSinceEpoch,
       );
       await _messagesColRef!.add(emotionMsg.toJson());
@@ -416,7 +438,7 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
   }
-  // ▲▲▲ [수정] _endDiary 함수 (timestamp 추가) ▲▲▲
+  // ▲▲▲ [수정] _endDiary 함수 ▲▲▲
 
 
   void _confirmDeleteChat() async {

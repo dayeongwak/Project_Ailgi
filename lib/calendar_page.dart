@@ -1,5 +1,3 @@
-// lib/calendar_page.dart (포춘 쿠키 아이콘 원복 및 크기 통일)
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -54,6 +52,7 @@ class _CalendarPageState extends State<CalendarPage> {
   int _selectedColorIndex = 0;
   Color _themeColor = Colors.white;
 
+  // 테마 색상 목록
   final List<Color> pastelColors = [
     Colors.white, const Color(0xFFF8F8F8), const Color(0xFFF0F0F0),
     const Color(0xFFEAEAEA), const Color(0xFFDCDCDC), const Color(0xFFC0C0C0),
@@ -71,6 +70,7 @@ class _CalendarPageState extends State<CalendarPage> {
     const Color(0xFFB291FF), const Color(0xFFA07EFF), const Color(0xFF8D6BE8),
   ];
 
+  // 포춘 쿠키 문구 전체 목록
   final List<String> defaultFortunes = [
     "오늘은 당신의 마음이 제일 빛나는 날이에요 ✨",
     "작은 일에도 감사함을 느껴보세요 🌿",
@@ -102,7 +102,7 @@ class _CalendarPageState extends State<CalendarPage> {
     "작은 씨앗이 거대한 나무가 되듯, 당신의 가능성은 무한해요. 🌳",
     "고민하던 문제가 의외로 쉽게 풀릴 수 있어요. 🔑",
     "오늘은 스마트폰을 잠시 멀리하고 하늘을 올려다보세요. 🌌",
-    "당신이 가는 길이 정답이에요. 자신 있게 나아가세요. 🌟",
+    "당신은 가는 길이 정답이에요. 자신 있게 나아가세요. 🌟",
     "감사의 마음을 표현하면 더 큰 감사가 돌아와요. 🙏",
     "달콤한 디저트가 당신의 하루를 더 행복하게 만들 거예요. 🍰",
     "오랫동안 바라던 일이 이루어질 조짐이 보여요. 🌠",
@@ -189,6 +189,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0)).toColor();
   }
 
+  // 감정 이모지 전체 목록
   String? _emoji(String? emotion) {
     const map = {
       "기쁨": "😁", "슬픔": "😢", "화남": "😡", "짜증": "😒", "무기력": "🥱",
@@ -202,7 +203,7 @@ class _CalendarPageState extends State<CalendarPage> {
       "감동": "🥹", "무서움": "👻", "반가움": "😊", "후련": "😮‍💨", "평화": "🕊️",
       "포기": "😞", "기적": "✨", "낭만": "🌹"
     };
-    return map[emotion];
+    return map[emotion] ?? "✨";
   }
 
   Future<void> _getTodayFortune() async {
@@ -271,34 +272,6 @@ class _CalendarPageState extends State<CalendarPage> {
           builder: (_) => SettingsPage(
             onThemeChanged: widget.onThemeChanged!,
           )
-      ),
-    );
-  }
-
-  // ✅ [수정] 개별 고정 FAB 스타일 위젯 (크기 통일)
-  Widget _buildFixedFab(IconData icon, VoidCallback onPressed, {String? tag}) {
-    final color = _getTextColor(_selectedColorIndex);
-
-    // 크기를 56x56으로 통일합니다.
-    const double size = 56.0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      width: size,
-      height: size,
-      child: FloatingActionButton(
-        heroTag: tag,
-        // mini 플래그를 false (기본 크기)로 통일
-        mini: false,
-        backgroundColor: _darkerColor(_themeColor),
-        foregroundColor: color,
-        elevation: 6,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        onPressed: onPressed,
-        // 아이콘 크기를 28로 통일
-        child: Icon(icon, size: 28),
       ),
     );
   }
@@ -404,6 +377,25 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  // ✅ [수정 완료] 디자인 유지 + 코드 리팩토링 (마진 추가 & 쉐이프 변경)
+  Widget _buildFixedFab(IconData icon, VoidCallback onPressed) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16.0), // 버튼 사이 간격 유지
+      width: 56.0, height: 56.0,
+      child: FloatingActionButton(
+        heroTag: null,
+        backgroundColor: _darkerColor(_themeColor),
+        foregroundColor: _getTextColor(_selectedColorIndex),
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16), // 둥근 사각형 디자인
+        ),
+        onPressed: onPressed,
+        child: Icon(icon, size: 28),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
@@ -415,10 +407,7 @@ class _CalendarPageState extends State<CalendarPage> {
         title: Text("Ailgi Calendar", style: TextStyle(color: textColor)),
         iconTheme: IconThemeData(color: textColor),
         actions: [
-          // 1. 친구 목록
           _buildFriendIcon(context, textColor),
-
-          // 2. 통계
           IconButton(
               icon: const Icon(Icons.bar_chart_outlined),
               tooltip: '월간 통계',
@@ -428,8 +417,6 @@ class _CalendarPageState extends State<CalendarPage> {
                   MaterialPageRoute(
                       builder: (_) =>
                           StatisticsPage(initialMonth: _focusedDay)))),
-
-          // 3. 즐겨찾기
           IconButton(
               icon: const Icon(Icons.star_border),
               tooltip: '즐겨찾기',
@@ -438,8 +425,6 @@ class _CalendarPageState extends State<CalendarPage> {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const FavoritePage()))),
-
-          // 4. 감정 검색
           IconButton(
               icon: const Icon(Icons.search_outlined),
               tooltip: '감정으로 일기 검색',
@@ -448,8 +433,6 @@ class _CalendarPageState extends State<CalendarPage> {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const SearchPage()))),
-
-          // 5. 알림 기록
           _buildNotificationIcon(context, textColor),
         ],
       ),
@@ -516,12 +499,12 @@ class _CalendarPageState extends State<CalendarPage> {
         ],
       ),
 
+      // 모듈화된 위젯 함수 사용
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 1. 일기 쓰기 (Icons.edit_calendar_outlined)
           _buildFixedFab(
             Icons.edit_calendar_outlined,
                 () async {
@@ -536,21 +519,16 @@ class _CalendarPageState extends State<CalendarPage> {
               );
               if (result == true) await _loadData();
             },
-            tag: "diaryFab",
           ),
 
-          // 2. 오늘의 포춘 쿠키 (Icons.auto_awesome_outlined로 원복)
           _buildFixedFab(
-            Icons.auto_awesome_outlined, // ✅ [수정] 다시 반짝이는 별 모양으로 원복
+            Icons.auto_awesome_outlined,
             _getTodayFortune,
-            tag: "fortuneFab",
           ),
 
-          // 3. 환경 설정 (Icons.settings_outlined)
           _buildFixedFab(
             Icons.settings_outlined,
             _openSettingsPage,
-            tag: "settingsFab",
           ),
         ],
       ),

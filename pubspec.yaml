@@ -3,6 +3,7 @@ description: Ailgi - AI 기반 감정 일기 앱
 publish_to: "none"
 version: 1.0.0+1
 
+# 🚩 [수정] SDK 제약 조건 섹션을 복구하고 들여쓰기를 가장 왼쪽(0칸)에 맞췄습니다.
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
@@ -19,7 +20,7 @@ dependencies:
 
   # UI Components
   table_calendar: ^3.1.2
-  flutter_chat_ui: ^1.6.15  # ✅ 버전 변경
+  flutter_chat_ui: ^1.6.15
   flutter_chat_types: ^3.6.2
   fl_chart: ^0.66.2
   passcode_screen: ^2.0.1
@@ -54,14 +55,30 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # ✅ 에셋 등록 (폴더 등록)
+  # ✅ 에셋 등록
   assets:
     - assets/google_logo.png
-    - assets/fonts/ # 💡 assets/fonts 폴더 전체를 등록
+    - assets/fonts/
 
-  # ✅ 폰트 등록 (memomentKkukkkuk 파일 사용)
+  # ✅ 폰트 등록 (모든 폰트 파일명/패밀리명 최종 확인 완료)
   fonts:
-    - family: MemomentKkuk # settings_page.dart에서 사용할 이름
+    - family: MemomentKkuk
       fonts:
         - asset: assets/fonts/memomentKkukkkuk.ttf
         - asset: assets/fonts/memomentKkukkkuk.otf
+
+    - family: DungGeunMo
+      fonts:
+        - asset: assets/fonts/DungGeunMo.ttf
+
+    - family: OngeulIpMeetMe
+      fonts:
+        - asset: assets/fonts/OngeulIp_MeetMe.ttf # ✅ 영문 파일 경로
+
+    - family: LeeSeoYoonChe
+      fonts:
+        - asset: assets/fonts/LeeSeoYoonChe.ttf
+
+    - family: YangJinChe
+      fonts:
+        - asset: assets/fonts/YangJinChe.otf

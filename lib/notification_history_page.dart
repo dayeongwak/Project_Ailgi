@@ -1,12 +1,9 @@
-// lib/notification_history_page.dart (Timestamp 오류 수정 완료)
+// lib/notification_history_page.dart
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'comment_page.dart';
-import 'friend_feed_page.dart';
-import 'dm_chat_page.dart';
 
 class NotificationHistoryPage extends StatefulWidget {
   const NotificationHistoryPage({super.key});
@@ -19,25 +16,51 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
   final _firestore = FirebaseFirestore.instance;
   final _myUid = FirebaseAuth.instance.currentUser?.uid;
 
-  String _myNickname = '...';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMyNickname();
+  // 1. 개별 알림 삭제 함수
+  Future<void> _deleteNotification(String docId) async {
+    if (_myUid == null) return;
+    await _firestore
+        .collection('users')
+        .doc(_myUid)
+        .collection('notifications')
+        .doc(docId)
+        .delete();
   }
 
-  Future<void> _loadMyNickname() async {
+  // 2. 전체 알림 삭제 함수
+  Future<void> _deleteAllNotifications() async {
     if (_myUid == null) return;
-    try {
-      final doc = await _firestore.collection('users').doc(_myUid).get();
-      if (mounted) {
-        setState(() {
-          _myNickname = doc.data()?['nickname'] ?? '나';
-        });
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("알림 전체 삭제"),
+        content: const Text("모든 알림 기록을 삭제하시겠습니까?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("취소")),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("삭제", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(_myUid)
+          .collection('notifications')
+          .get();
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
       }
-    } catch (e) {
-      print("Error loading my nickname: $e");
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("모든 알림이 삭제되었습니다.")),
+        );
+      }
     }
   }
 
@@ -47,12 +70,18 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
   }
 
   // 모든 알림을 '읽음'으로 처리하는 함수
-  Future<void> _markAllAsRead(List<QueryDocumentSnapshot> docs) async {
+  Future<void> _markAllAsRead() async {
+    if (_myUid == null) return;
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(_myUid)
+        .collection('notifications')
+        .where('read', isEqualTo: false)
+        .get();
+
     final batch = _firestore.batch();
-    for (var doc in docs) {
-      if (!(doc.data() as Map<String, dynamic>)['read']) {
-        batch.update(doc.reference, {'read': true});
-      }
+    for (var doc in snapshot.docs) {
+      batch.update(doc.reference, {'read': true});
     }
     await batch.commit();
   }
@@ -82,41 +111,10 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
       _markAsRead(docRef);
     }
 
-    final type = data['type'];
-
-    if (type == 'like' || type == 'comment') {
-      if (_myNickname == '...') return;
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CommentPage(
-            diaryOwnerUid: _myUid!,
-            diaryDateKey: data['diaryDateKey'],
-            friendNickname: _myNickname,
-            diarySummary: data['summary'] ?? '일기 요약',
-          ),
-        ),
-      );
-    } else if (type == 'friend_request') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const FriendFeedPage()),
-      );
-    } else if (type == 'dm') {
-      final String peerUid = data['fromUid'];
-      final String peerNickname = data['fromNickname'];
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DmChatPage(
-            peerUid: peerUid,
-            peerNickname: peerNickname,
-          ),
-        ),
-      );
-    }
+    // 친구 기능이 삭제되었으므로 알림 탭 시 안내 메시지만 표시
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('확인했습니다.')),
+    );
   }
 
   @override
@@ -131,6 +129,20 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('알림'),
+        actions: [
+          // 전체 삭제 버튼
+          IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            tooltip: '전체 삭제',
+            onPressed: _deleteAllNotifications,
+          ),
+          // 모두 읽음 버튼
+          IconButton(
+            icon: const Icon(Icons.done_all),
+            tooltip: '모두 읽음',
+            onPressed: _markAllAsRead,
+          ),
+        ],
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore
@@ -160,48 +172,44 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
             );
           }
 
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => _markAllAsRead(notifications),
-                    child: const Text('모두 읽음으로 표시'),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: notifications.length,
-                  itemBuilder: (context, index) {
-                    final doc = notifications[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final bool isRead = data['read'] ?? false;
+          return ListView.builder(
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final doc = notifications[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final bool isRead = data['read'] ?? false;
 
-                    return _buildNotificationTile(data, isRead, doc.reference);
-                  },
+              // ✅ [신규] Dismissible을 사용하여 스와이프 삭제 기능 구현
+              return Dismissible(
+                key: Key(doc.id), // 각 항목의 고유 키
+                direction: DismissDirection.endToStart, // 오른쪽에서 왼쪽으로 스와이프
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
                 ),
-              ),
-            ],
+                onDismissed: (direction) {
+                  _deleteNotification(doc.id); // 스와이프 시 삭제 실행
+                },
+                child: _buildNotificationTile(data, isRead, doc.reference),
+              );
+            },
           );
         },
       ),
     );
   }
 
-  // 알림 타일 생성 함수 (Timestamp 오류 수정)
+  // 알림 타일 생성 함수
   Widget _buildNotificationTile(Map<String, dynamic> data, bool isRead, DocumentReference docRef) {
     final type = data['type'];
-    final fromNickname = data['fromNickname'] ?? '친구';
+    final fromNickname = data['fromNickname'] ?? '알림';
 
-    // ✅ [수정] data['timestamp']가 int일 경우 Timestamp로 변환 시도
     Timestamp? timestamp;
     if (data['timestamp'] is Timestamp) {
       timestamp = data['timestamp'] as Timestamp;
     } else if (data['timestamp'] is int) {
-      // Int(epoch milliseconds)인 경우 Timestamp로 변환하여 사용 (오류 해결)
       timestamp = Timestamp.fromMillisecondsSinceEpoch(data['timestamp'] as int);
     }
 
@@ -224,7 +232,7 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
       iconData = Icons.person_add;
       iconColor = Colors.green;
       titleText = '$fromNickname 님이 친구 요청을 보냈습니다.';
-      subtitleText = '친구 목록에서 요청을 수락하세요.';
+      subtitleText = '친구 기능은 현재 지원되지 않습니다.';
     } else if (type == 'dm') {
       iconData = Icons.chat_bubble;
       iconColor = Colors.blueGrey;
@@ -234,6 +242,7 @@ class _NotificationHistoryPageState extends State<NotificationHistoryPage> {
       iconData = Icons.notifications;
       iconColor = Colors.grey;
       titleText = '새로운 알림';
+      subtitleText = data['body'] ?? '';
     }
 
     return Card(

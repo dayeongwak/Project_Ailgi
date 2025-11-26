@@ -186,26 +186,7 @@ class _ChatPageState extends State<ChatPage> {
     widget.onEmotionAnalyzed("");
   }
 
-  Future<void> _togglePublish(bool currentIsPublic) async {
-    if (_diaryDocRef == null) return;
-
-    final newIsPublic = !currentIsPublic;
-
-    await _diaryDocRef!.set(
-      {'isPublic': newIsPublic},
-      SetOptions(merge: true),
-    );
-
-    final message = newIsPublic
-        ? '오늘의 감정 스티커를 친구들에게 공개했습니다. 😃'
-        : '오늘의 감정 스티커를 비공개로 전환했습니다. 🔒';
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    }
-  }
+  // _togglePublish 함수 삭제됨 (얼굴 아이콘 관련 기능 제거)
 
   Future<String> _getChatReply(String text) async {
     const systemPrompt = """
@@ -347,7 +328,6 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  // ✅ [추가] 감정 단어에 맞는 이모지 반환 함수
   String _getEmojiForEmotion(String emotion) {
     const map = {
       "기쁨": "😁", "슬픔": "😢", "화남": "😡", "짜증": "😒", "무기력": "🥱",
@@ -366,8 +346,6 @@ class _ChatPageState extends State<ChatPage> {
     return map[emotion] ?? "✨";
   }
 
-
-  // ▼▼▼ [수정] _endDiary 함수 (timestamp 추가 + 감정에 맞는 이모지 적용) ▼▼▼
   Future<void> _endDiary(List<types.Message> currentMessages) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     if (_diaryDocRef == null || _messagesColRef == null) {
@@ -404,19 +382,18 @@ class _ChatPageState extends State<ChatPage> {
             'emotion': emotion,
             'summary': summary,
             'allText': allText,
-            'timestamp': widget.selectedDay, // ✅ [수정] 검색 정렬을 위한 timestamp 저장
+            'timestamp': widget.selectedDay,
           },
           SetOptions(merge: true)
       );
       print("✅ DEBUG: Firestore .set() 저장 성공!");
 
-      // ✅ [수정] 감정에 맞는 이모지를 가져와서 메시지에 포함시킴
       final String emotionEmoji = _getEmojiForEmotion(emotion);
 
       final emotionMsg = types.TextMessage(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         author: _bot,
-        text: "오늘의 감정은 '$emotion' $emotionEmoji 이에요.\n$comment", // ✅ 이모지 추가됨
+        text: "오늘의 감정은 '$emotion' $emotionEmoji 이에요.\n$comment",
         createdAt: DateTime.now().millisecondsSinceEpoch,
       );
       await _messagesColRef!.add(emotionMsg.toJson());
@@ -438,7 +415,6 @@ class _ChatPageState extends State<ChatPage> {
       );
     }
   }
-  // ▲▲▲ [수정] _endDiary 함수 ▲▲▲
 
 
   void _confirmDeleteChat() async {
@@ -597,25 +573,7 @@ class _ChatPageState extends State<ChatPage> {
         ),
         iconTheme: IconThemeData(color: _textColor),
         actions: [
-          StreamBuilder<DocumentSnapshot>(
-            stream: _diaryDocRef!.snapshots(),
-            builder: (context, snapshot) {
-              bool isPublic = false;
-              if (snapshot.hasData && snapshot.data!.exists) {
-                final data = snapshot.data!.data() as Map<String, dynamic>;
-                isPublic = data['isPublic'] ?? false;
-              }
-
-              return IconButton(
-                tooltip: isPublic ? '오늘의 감정 공개됨 (친구에게 보임)' : '오늘의 감정 비공개됨',
-                icon: Icon(
-                  isPublic ? Icons.mood_sharp : Icons.mood_bad_sharp,
-                  color: isPublic ? Colors.green : _textColor,
-                ),
-                onPressed: () => _togglePublish(isPublic),
-              );
-            },
-          ),
+          // 얼굴 아이콘(공개/비공개 토글) 삭제됨
           StreamBuilder<DocumentSnapshot>(
             stream: _diaryDocRef!.snapshots(),
             builder: (context, snapshot) {

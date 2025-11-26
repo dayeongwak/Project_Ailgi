@@ -1,3 +1,5 @@
+// lib/calendar_page.dart
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -10,13 +12,12 @@ import 'statistics_page.dart';
 import 'favorite_page.dart';
 import 'api_key.dart';
 import 'settings_page.dart';
-import 'friend_feed_page.dart';
+// 검색, 친구 관련 import 삭제됨
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notification_history_page.dart';
-import 'search_page.dart';
-import 'chat_list_page.dart';
+
 
 // 설정 키 정의
 const String KEY_BACKGROUND_URL = '_app_background_image_url';
@@ -276,57 +277,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  // 친구 아이콘 빌더
-  Widget _buildFriendIcon(BuildContext context, Color textColor) {
-    final baseIcon = IconButton(
-        icon: const Icon(Icons.people_alt_outlined),
-        tooltip: '친구 목록',
-        color: textColor,
-        onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => const FriendFeedPage())
-        )
-    );
-
-    if (_uid == null) return baseIcon;
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore
-          .collection('users')
-          .doc(_uid)
-          .collection('notifications')
-          .where('read', isEqualTo: false)
-          .where('type', whereIn: ['dm', 'friend_request'])
-          .limit(1)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final bool hasUnread = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            baseIcon,
-            if (hasUnread)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _themeColor, width: 1.5),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
   // 알림 아이콘 빌더
   Widget _buildNotificationIcon(BuildContext context, Color textColor) {
     final baseIcon = IconButton(
@@ -377,7 +327,6 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  // ✅ [수정 완료] 디자인 유지 + 코드 리팩토링 (마진 추가 & 쉐이프 변경)
   Widget _buildFixedFab(IconData icon, VoidCallback onPressed) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16.0), // 버튼 사이 간격 유지
@@ -407,7 +356,7 @@ class _CalendarPageState extends State<CalendarPage> {
         title: Text("Ailgi Calendar", style: TextStyle(color: textColor)),
         iconTheme: IconThemeData(color: textColor),
         actions: [
-          _buildFriendIcon(context, textColor),
+          // 친구 아이콘 삭제됨
           IconButton(
               icon: const Icon(Icons.bar_chart_outlined),
               tooltip: '월간 통계',
@@ -425,14 +374,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const FavoritePage()))),
-          IconButton(
-              icon: const Icon(Icons.search_outlined),
-              tooltip: '감정으로 일기 검색',
-              color: textColor,
-              onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const SearchPage()))),
+          // 검색 아이콘 삭제됨
           _buildNotificationIcon(context, textColor),
         ],
       ),

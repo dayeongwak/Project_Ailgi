@@ -1,4 +1,4 @@
-// lib/settings_page.dart (FCM을 위해 알림 설정을 Firestore에도 저장)
+// lib/settings_page.dart
 
 import 'dart:async';
 import 'dart:io';
@@ -17,10 +17,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 // 페이지 및 설정 임포트
-import 'friend_feed_page.dart';
 import 'font_config.dart';
 import 'help_page.dart';
-import 'hidden_friends_page.dart';
 
 // SharedPreferences 키 정의
 const String storedPinKey = '_my_diary_pin_code';
@@ -30,13 +28,9 @@ const String FONT_FAMILY_KEY = '_app_font_family';
 const String KEY_BACKGROUND_URL = '_app_background_image_url';
 const String KEY_THEME_COLOR = '_theme_color_index';
 
-// 알림 키 정의 (Firestore에서도 이 키를 그대로 사용)
-const String KEY_ALL_NOTIFY_ENABLED = '_all_notify_enabled';
+// 알림 키 정의
 const String KEY_DAILY_NOTIFY_ENABLED = '_daily_push_notify_enabled';
 const String KEY_NOTIFY_TIME = '_notify_time';
-const String KEY_FRIEND_REQUEST_NOTIFY_ENABLED = '_friend_request_notify_enabled';
-const String KEY_LIKE_NOTIFY_ENABLED = '_like_notify_enabled';
-const String KEY_COMMENT_NOTIFY_ENABLED = '_comment_notify_enabled';
 
 class SettingsPage extends StatefulWidget {
   final ValueChanged<Color> onThemeChanged;
@@ -47,23 +41,16 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // --- 상태 변수 ---
   bool _isPasscodeEnabled = false;
   int _currentPinLength = 6;
   final StreamController<bool> _verificationNotifier = StreamController<bool>.broadcast();
 
-  bool _isAllNotifyEnabled = true;
   bool _isDailyNotifyEnabled = true;
-  bool _isFriendRequestNotifyEnabled = true;
-  bool _isLikeNotifyEnabled = true;
-  bool _isCommentNotifyEnabled = true;
-
   String _notifyTimeString = '21:00';
   TimeOfDay _selectedTime = const TimeOfDay(hour: 21, minute: 0);
 
   String _currentNickname = 'Guest';
   final TextEditingController _nicknameController = TextEditingController();
-  final TextEditingController _statusMessageController = TextEditingController();
 
   String? _profileImageUrl;
   bool _isUploading = false;
@@ -83,7 +70,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return "${_uid ?? 'GUEST'}$suffix";
   }
 
-  // Pastel Colors 리스트
   final List<Color> pastelColors = [
     Colors.white, const Color(0xFFF8F8F8), const Color(0xFFF0F0F0),
     const Color(0xFFEAEAEA), const Color(0xFFDCDCDC), const Color(0xFFC0C0C0),
@@ -101,7 +87,6 @@ class _SettingsPageState extends State<SettingsPage> {
     const Color(0xFFB291FF), const Color(0xFFA07EFF), const Color(0xFF8D6BE8),
   ];
 
-
   @override
   void initState() {
     super.initState();
@@ -115,25 +100,16 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _verificationNotifier.close();
     _nicknameController.dispose();
-    _statusMessageController.dispose();
     super.dispose();
   }
 
-  // --- 1. 설정 및 프로필 로드 함수 ---
   Future<void> _loadAllSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _isPasscodeEnabled = prefs.getBool(_getPrefKey(passcodeEnabledKey)) ?? false;
       _currentPinLength = prefs.getInt(_getPrefKey(passcodeLengthKey)) ?? 6;
       _selectedColorIndex = prefs.getInt(_getPrefKey(KEY_THEME_COLOR)) ?? 0;
-
-      // SharedPreferences에서 알림 설정을 읽어옴 (FCM 설정과 무관)
-      _isAllNotifyEnabled = prefs.getBool(_getPrefKey(KEY_ALL_NOTIFY_ENABLED)) ?? true;
       _isDailyNotifyEnabled = prefs.getBool(_getPrefKey(KEY_DAILY_NOTIFY_ENABLED)) ?? true;
-      _isFriendRequestNotifyEnabled = prefs.getBool(_getPrefKey(KEY_FRIEND_REQUEST_NOTIFY_ENABLED)) ?? true;
-      _isLikeNotifyEnabled = prefs.getBool(_getPrefKey(KEY_LIKE_NOTIFY_ENABLED)) ?? true;
-      _isCommentNotifyEnabled = prefs.getBool(_getPrefKey(KEY_COMMENT_NOTIFY_ENABLED)) ?? true;
-
       _notifyTimeString = prefs.getString(_getPrefKey(KEY_NOTIFY_TIME)) ?? '21:00';
       final parts = _notifyTimeString.split(':');
       _selectedTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
@@ -149,13 +125,11 @@ class _SettingsPageState extends State<SettingsPage> {
         final data = doc.data()!;
         final nickname = data['nickname'] as String? ?? 'Guest';
         final profileUrl = data['profileUrl'] as String?;
-        final statusMessage = data['statusMessage'] as String? ?? '';
 
         if (mounted) {
           setState(() {
             _currentNickname = nickname;
             _nicknameController.text = nickname;
-            _statusMessageController.text = statusMessage;
             _profileImageUrl = profileUrl;
           });
         }
@@ -167,7 +141,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadFontSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    if(mounted) {
+    if (mounted) {
       setState(() {
         _selectedFontFamily = prefs.getString(_getPrefKey(FONT_FAMILY_KEY)) ?? 'SystemDefault';
       });
@@ -176,16 +150,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadBackgroundImage() async {
     final prefs = await SharedPreferences.getInstance();
-    if(mounted) {
+    if (mounted) {
       setState(() {
         _currentBackgroundImageUrl = prefs.getString(_getPrefKey(KEY_BACKGROUND_URL));
       });
     }
   }
 
-// --- 2. 설정 저장 함수 ---
-
-  // (SharedPreferences 전용 저장 함수)
   Future<void> _saveSingleSetting<T>(String key, T value) async {
     final prefs = await SharedPreferences.getInstance();
     if (value is bool) {
@@ -197,31 +168,23 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // ▼▼▼ [FCM 신규] 알림 설정을 SharedPreferences와 Firestore에 동시 저장 ▼▼▼
   Future<void> _saveNotificationSetting(String key, bool value) async {
-    if (_uid == null) return; // 로그인 상태가 아니면 저장 안 함
-
-    // 1. (휴대폰) SharedPreferences에 저장 (앱이 읽는 용도)
+    if (_uid == null) return;
     await _saveSingleSetting(key, value);
-
-    // 2. (서버) Firestore 'users' 문서에 저장 (서버가 읽는 용도)
     try {
-      // (중요) Firestore에는 UID 접두사(_getPrefKey) 없이 원본 키(key)로 저장
       await _firestore.collection('users').doc(_uid).set(
-        { key: value }, // 예: { '_all_notify_enabled': true }
+        {key: value},
         SetOptions(merge: true),
       );
     } catch (e) {
       print("❌ Firestore 알림 설정 저장 실패: $e");
     }
   }
-  // ▲▲▲ [FCM 신규] 알림 설정을 SharedPreferences와 Firestore에 동시 저장 ▲▲▲
 
   Future<void> _saveFontSetting(String newFont) async {
-    await _saveSingleSetting(FONT_FAMILY_KEY, newFont); // 폰트는 SP에만 저장
+    await _saveSingleSetting(FONT_FAMILY_KEY, newFont);
     if (mounted) {
       setState(() { _selectedFontFamily = newFont; });
-      widget.onThemeChanged(Theme.of(context).primaryColor);
       Navigator.pop(context);
     }
   }
@@ -235,11 +198,6 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
     try {
-      final querySnapshot = await _firestore.collection('users').where('nickname', isEqualTo: newNickname).limit(1).get();
-      if (querySnapshot.docs.isNotEmpty && querySnapshot.docs.first.id != uid) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('이미 사용 중인 닉네임입니다.')));
-        return;
-      }
       await _firestore.collection('users').doc(uid).set({'nickname': newNickname}, SetOptions(merge: true));
       if (mounted) {
         setState(() { _currentNickname = newNickname; });
@@ -247,23 +205,6 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('닉네임 저장 오류: $e')));
-    }
-  }
-
-  Future<void> _saveStatusMessage() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
-    final newStatus = _statusMessageController.text.trim();
-    try {
-      await _firestore.collection('users').doc(uid).set({
-        'statusMessage': newStatus,
-      }, SetOptions(merge: true));
-      if (mounted) {
-        FocusScope.of(context).unfocus();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('상태 메시지가 저장되었습니다.')));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 오류: $e')));
     }
   }
 
@@ -303,7 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final ref = _storage.ref().child('users/$uid/background/${DateTime.now().millisecondsSinceEpoch}.jpg');
       await ref.putFile(file);
       final downloadUrl = await ref.getDownloadURL();
-      await _saveSingleSetting(KEY_BACKGROUND_URL, downloadUrl); // SP에만 저장
+      await _saveSingleSetting(KEY_BACKGROUND_URL, downloadUrl);
       if (mounted) {
         setState(() { _currentBackgroundImageUrl = downloadUrl; _isUploading = false; });
         scaffoldMessenger.showSnackBar(const SnackBar(content: Text('배경 이미지가 설정되었습니다. ✨')));
@@ -320,7 +261,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _removeBackground() async {
     final prefs = await SharedPreferences.getInstance();
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    await prefs.remove(_getPrefKey(KEY_BACKGROUND_URL)); // SP에서만 제거
+    await prefs.remove(_getPrefKey(KEY_BACKGROUND_URL));
     if (mounted) {
       setState(() { _currentBackgroundImageUrl = null; });
       scaffoldMessenger.showSnackBar(const SnackBar(content: Text('배경 이미지가 제거되었습니다.')));
@@ -329,7 +270,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _saveThemeSetting(int index) async {
-    await _saveSingleSetting(KEY_THEME_COLOR, index); // SP에만 저장
+    await _saveSingleSetting(KEY_THEME_COLOR, index);
     if (mounted) {
       setState(() { _selectedColorIndex = index; });
       widget.onThemeChanged(pastelColors[index]);
@@ -337,7 +278,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // --- 4. 비밀번호 설정 함수들 (PIN 변경) ---
   _showSetPasscodeScreen({int? initialLength}) {
     Navigator.push(
       context,
@@ -348,29 +288,19 @@ class _SettingsPageState extends State<SettingsPage> {
           return StatefulBuilder(
             builder: (BuildContext context, StateSetter setModalState) {
               void updateLength(int newLength) {
-                setModalState(() {
-                  tempLength = newLength;
-                });
+                setModalState(() { tempLength = newLength; });
               }
               return PasscodeScreen(
                 title: Text('새 비밀번호 설정 (${tempLength}자리)', style: const TextStyle(color: Colors.white, fontSize: 18)),
                 circleUIConfig: const CircleUIConfig(borderColor: Colors.blue, fillColor: Colors.blue),
                 keyboardUIConfig: const KeyboardUIConfig(primaryColor: Colors.white, digitTextStyle: TextStyle(color: Colors.white, fontSize: 20)),
                 passwordEnteredCallback: (enteredPasscode) async {
-                  await _saveSingleSetting(storedPinKey, enteredPasscode); // SP에만 저장
-                  await _saveSingleSetting(passcodeEnabledKey, true); // SP에만 저장
-                  await _saveSingleSetting(passcodeLengthKey, tempLength); // SP에만 저장
-
-                  setState(() {
-                    _isPasscodeEnabled = true;
-                    _currentPinLength = tempLength;
-                  });
+                  await _saveSingleSetting(storedPinKey, enteredPasscode);
+                  await _saveSingleSetting(passcodeEnabledKey, true);
+                  await _saveSingleSetting(passcodeLengthKey, tempLength);
+                  setState(() { _isPasscodeEnabled = true; _currentPinLength = tempLength; });
                   Navigator.pop(context);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('비밀번호가 설정되었습니다.')),
-                    );
-                  }
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('비밀번호가 설정되었습니다.')));
                 },
                 cancelButton: const Icon(Icons.arrow_back, color: Colors.white),
                 deleteButton: const Text('삭제', style: TextStyle(color: Colors.white, fontSize: 16)),
@@ -426,8 +356,7 @@ class _SettingsPageState extends State<SettingsPage> {
           circleUIConfig: const CircleUIConfig(borderColor: Colors.blue, fillColor: Colors.blue),
           keyboardUIConfig: const KeyboardUIConfig(primaryColor: Colors.white, digitTextStyle: TextStyle(color: Colors.white, fontSize: 20)),
           passwordEnteredCallback: (enteredPin) {
-            bool isValid = (enteredPin == storedPin);
-            if (isValid) {
+            if (enteredPin == storedPin) {
               Navigator.pop(context);
               _showSetPasscodeScreen(initialLength: _currentPinLength);
             } else {
@@ -445,84 +374,28 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-
-  // --- 5. 알림 함수들 ---
-
-  // ▼▼▼ [수정됨] 모든 알림 핸들러가 _saveNotificationSetting 사용 ▼▼▼
-
-  // (1) 마스터 스위치 핸들러
-  Future<void> _onAllNotifySwitchChanged(bool v) async {
-    setState(() => _isAllNotifyEnabled = v);
-    await _saveNotificationSetting(KEY_ALL_NOTIFY_ENABLED, v); // ✅ Firestore 저장
-
-    if (!v) {
-      await NotificationService().cancelAllNotifications();
-      setState(() => _isDailyNotifyEnabled = false);
-      await _saveNotificationSetting(KEY_DAILY_NOTIFY_ENABLED, false); // ✅ Firestore 저장
+  Future<void> _onDailyNotifySwitchChanged(bool v) async {
+    setState(() => _isDailyNotifyEnabled = v);
+    await _saveNotificationSetting(KEY_DAILY_NOTIFY_ENABLED, v);
+    if (v) {
+      await NotificationService().rescheduleNotification(_uid);
     } else {
+      await NotificationService().cancelAllNotifications();
+    }
+  }
+
+  Future<void> _onTimeTapped() async {
+    final picked = await showTimePicker(context: context, initialTime: _selectedTime);
+    if (picked != null) {
+      final newTimeString = "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
+      setState(() { _selectedTime = picked; _notifyTimeString = newTimeString; });
+      await _saveSingleSetting(KEY_NOTIFY_TIME, newTimeString);
       if (_isDailyNotifyEnabled) {
         await NotificationService().rescheduleNotification(_uid);
       }
     }
   }
 
-  // (2) 매일 알림 (푸시) 핸들러
-  Future<void> _onDailyNotifySwitchChanged(bool v) async {
-    setState(() => _isDailyNotifyEnabled = v);
-    await _saveNotificationSetting(KEY_DAILY_NOTIFY_ENABLED, v); // ✅ Firestore 저장
-
-    if (_isAllNotifyEnabled) {
-      if (v) {
-        await NotificationService().rescheduleNotification(_uid);
-      } else {
-        await NotificationService().cancelAllNotifications();
-      }
-    }
-  }
-
-  // (3) 친구 요청 (푸시) 핸들러
-  Future<void> _onFriendRequestNotifySwitchChanged(bool v) async {
-    setState(() => _isFriendRequestNotifyEnabled = v);
-    await _saveNotificationSetting(KEY_FRIEND_REQUEST_NOTIFY_ENABLED, v); // ✅ Firestore 저장
-  }
-
-  // (4) 공감 (푸시) 핸들러
-  Future<void> _onLikeNotifySwitchChanged(bool v) async {
-    setState(() => _isLikeNotifyEnabled = v);
-    await _saveNotificationSetting(KEY_LIKE_NOTIFY_ENABLED, v); // ✅ Firestore 저장
-  }
-
-  // (5) 댓글 (푸시) 핸들러
-  Future<void> _onCommentNotifySwitchChanged(bool v) async {
-    setState(() => _isCommentNotifyEnabled = v);
-    await _saveNotificationSetting(KEY_COMMENT_NOTIFY_ENABLED, v); // ✅ Firestore 저장
-  }
-  // ▲▲▲ [수정됨] 모든 알림 핸들러가 _saveNotificationSetting 사용 ▲▲▲
-
-
-  // (6) 알림 시간 설정
-  Future<void> _onTimeTapped() async {
-    final picked = await showTimePicker(
-        context: context,
-        initialTime: _selectedTime
-    );
-    if (picked != null) {
-      final newTimeString = "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
-      setState(() {
-        _selectedTime = picked;
-        _notifyTimeString = newTimeString;
-      });
-      // (알림 시간은 서버가 알 필요 없으므로 SP에만 저장)
-      await _saveSingleSetting(KEY_NOTIFY_TIME, newTimeString);
-
-      if (_isAllNotifyEnabled && _isDailyNotifyEnabled) {
-        await NotificationService().rescheduleNotification(_uid);
-      }
-    }
-  }
-
-
-  // --- 6. 계정 연동/로그아웃 함수들 ---
   Future<void> _linkWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -540,32 +413,14 @@ class _SettingsPageState extends State<SettingsPage> {
             {'nickname': googleUser.displayName, 'email': user.email},
             SetOptions(merge: true)
         );
-        if(mounted) setState(() => _currentNickname = googleUser.displayName!);
+        if (mounted) setState(() => _currentNickname = googleUser.displayName!);
       }
       setState(() {});
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google 계정이 연동되었습니다!')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Google 계정이 연동되었습니다!')));
     } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        if (e.code == 'credential-already-in-use') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이 Google 계정은 이미 다른 사용자와 연결되어 있습니다.')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('연동 실패: ${e.message}')),
-          );
-        }
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('연동 실패: ${e.message}')));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('연동 실패: $e')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('연동 실패: $e')));
     }
   }
 
@@ -577,14 +432,8 @@ class _SettingsPageState extends State<SettingsPage> {
           title: const Text('로그아웃'),
           content: const Text('정말 로그아웃 하시겠습니까?'),
           actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('확인', style: TextStyle(color: Colors.red)),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('확인', style: TextStyle(color: Colors.red))),
           ],
         );
       },
@@ -595,49 +444,113 @@ class _SettingsPageState extends State<SettingsPage> {
     final uid = _auth.currentUser?.uid;
     final prefs = await SharedPreferences.getInstance();
 
-    // ▼▼▼ [FCM 수정] 로그아웃 시 토큰 제거 ▼▼▼
     if (uid != null) {
-      // 서버에서 FCM 토큰 제거 (푸시 알림 중지)
       try {
         await _firestore.collection('users').doc(uid).set(
-          { 'fcmToken': FieldValue.delete() },
+          {'fcmToken': FieldValue.delete()},
           SetOptions(merge: true),
         );
       } catch (e) {
         print("❌ FCM 토큰 제거 실패: $e");
       }
-
-      // 로컬 SP에서 PIN 정보 제거 (기존 로직)
       final String pinKey = "${uid}$storedPinKey";
       final String enableKey = "${uid}$passcodeEnabledKey";
       final String lengthKey = "${uid}$passcodeLengthKey";
-
       await prefs.remove(pinKey);
       await prefs.setBool(enableKey, false);
       await prefs.remove(lengthKey);
     }
-    // ▲▲▲ [FCM 수정] 로그아웃 시 토큰 제거 ▲▲▲
 
     await GoogleSignIn().signOut();
     await _auth.signOut();
 
-    if (mounted) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  // --- 7. UI 빌드 ---
+  // ▼▼▼▼▼ [신규] 회원 탈퇴 기능 ▼▼▼▼▼
+  Future<void> _deleteAccount() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('회원 탈퇴'),
+          content: const Text('정말로 탈퇴하시겠습니까?\n작성한 모든 일기와 설정이 영구적으로 삭제되며, 복구할 수 없습니다.'),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('탈퇴', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    final user = _auth.currentUser;
+    final uid = user?.uid;
+    if (uid == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    // 로딩 표시
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    try {
+      // 1. 하위 컬렉션(일기) 삭제 - 반복문으로 직접 삭제
+      final diariesSnapshot = await _firestore.collection('users').doc(uid).collection('diaries').get();
+      final notificationsSnapshot = await _firestore.collection('users').doc(uid).collection('notifications').get();
+
+      final batch = _firestore.batch();
+      for (var doc in diariesSnapshot.docs) batch.delete(doc.reference);
+      for (var doc in notificationsSnapshot.docs) batch.delete(doc.reference);
+      await batch.commit();
+
+      // 2. 사용자 문서 삭제
+      await _firestore.collection('users').doc(uid).delete();
+
+      // 3. 로컬 설정(PIN 등) 삭제
+      final String pinKey = "${uid}$storedPinKey";
+      final String enableKey = "${uid}$passcodeEnabledKey";
+      final String lengthKey = "${uid}$passcodeLengthKey";
+      await prefs.remove(pinKey);
+      await prefs.setBool(enableKey, false);
+      await prefs.remove(lengthKey);
+
+      // 4. 구글 연결 해제 및 Auth 계정 삭제
+      await GoogleSignIn().disconnect();
+      await user?.delete(); // 재로그인 필요할 수 있음 (requires-recent-login)
+
+      if (mounted) {
+        Navigator.pop(context); // 로딩 닫기
+        Navigator.of(context).popUntil((route) => route.isFirst); // 로그인 화면으로
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('회원 탈퇴가 완료되었습니다.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // 로딩 닫기
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('탈퇴 실패: $e (다시 로그인 후 시도해주세요)')));
+      }
+    }
+  }
+  // ▲▲▲▲▲ [신규] 회원 탈퇴 기능 ▲▲▲▲▲
+
   @override
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('환경설정'),
-      ),
+      appBar: AppBar(title: const Text('환경설정')),
       body: ListView(
         children: [
-          // --- 7-1. 프로필 섹션 ---
+          // 1. 프로필 섹션
           Padding(
             padding: const EdgeInsets.only(top: 20, bottom: 20),
             child: Center(child: Column(children: [
@@ -647,19 +560,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 else const Positioned(bottom: 0, right: 0, child: CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Icon(Icons.camera_alt, size: 14, color: Colors.blue),),),
               ],),),
               const SizedBox(height: 8),
-              Text(
-                _currentNickname,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                user?.email ?? '이메일 없음',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
+              Text(_currentNickname, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(user?.email ?? '이메일 없음', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ],),),
           ),
           const Divider(height: 1),
 
-          // --- 7-2. 계정 섹션 ---
+          // 2. 계정 섹션 (회원탈퇴 추가됨)
           const Padding(padding: EdgeInsets.fromLTRB(16, 20, 16, 10), child: Text('계정', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
           if (user == null) const ListTile(title: Text("로드 중..."))
           else if (user.isAnonymous) Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -667,71 +574,29 @@ class _SettingsPageState extends State<SettingsPage> {
             Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0), child: ElevatedButton(onPressed: _linkWithGoogle, style: ElevatedButton.styleFrom(foregroundColor: Colors.black, backgroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12),), child: const Text('Google 계정으로 연동하기'),),),
           ],)
           else Column(children: [
-              ListTile(leading: const Icon(Icons.person, color: Colors.green), title: Text(user.displayName ?? _currentNickname), subtitle: Text(user.email ?? '이메일 정보 없음'),),
+              ListTile(leading: const Icon(Icons.person, color: Colors.green), title: Text(user.displayName ?? _currentNickname), subtitle: Text(user.email ?? '이메일 정보 없음')),
               ListTile(leading: const Icon(Icons.logout, color: Colors.red), title: const Text('로그아웃', style: TextStyle(color: Colors.red)), onTap: _signOut,),
+              ListTile(leading: const Icon(Icons.person_off, color: Colors.grey), title: const Text('회원 탈퇴', style: TextStyle(color: Colors.grey)), onTap: _deleteAccount,), // ✅ 추가됨
             ],),
           const Divider(height: 30),
 
-          // --- 7-3. 프로필 수정 (닉네임 + 상태 메시지) ---
+          // 3. 프로필 수정
           const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 10), child: Text('프로필 수정', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
-
-          // (1) 닉네임 변경
           Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0), child: Row(children: [
-            Expanded(child: TextField(controller: _nicknameController, decoration: const InputDecoration(labelText: '닉네임 (검색용)', border: OutlineInputBorder(),),),),
+            Expanded(child: TextField(controller: _nicknameController, decoration: const InputDecoration(labelText: '닉네임', border: OutlineInputBorder(),),),),
             const SizedBox(width: 10),
             ElevatedButton(onPressed: _saveNickname, child: const Text('저장'),),
           ],),),
-
-          // (2) 상태 메시지 변경
-          const SizedBox(height: 16),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 16.0), child: Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _statusMessageController,
-                maxLength: 50,
-                decoration: const InputDecoration(
-                  labelText: '상태 메시지 (프로필에 표시)',
-                  border: OutlineInputBorder(),
-                  counterText: "",
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            ElevatedButton(onPressed: _saveStatusMessage, child: const Text('저장'),),
-          ],),),
           const Divider(height: 30),
 
-          // --- 7-4. 앱 꾸미기 섹션 ---
+          // 4. 앱 꾸미기
           const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 10), child: Text('앱 꾸미기', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
           ListTile(leading: const Icon(Icons.palette), title: const Text('테마 색상 변경'), subtitle: const Text('캘린더 및 앱의 전반적인 색상을 변경합니다.'), onTap: _showThemeSelector,),
           ListTile(leading: const Icon(Icons.wallpaper), title: const Text('배경 이미지 설정 (갤러리)'), subtitle: _isUploading ? const Text('이미지 업로드 중...') : _currentBackgroundImageUrl != null ? const Text('현재 사용자 지정 배경이 적용됨') : const Text('기본 배경 사용 중'), trailing: _currentBackgroundImageUrl != null ? IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: _removeBackground,) : null, onTap: _isUploading ? null : _pickAndUploadBackground,),
           ListTile(leading: const Icon(Icons.font_download), title: const Text('앱 폰트 변경'), subtitle: Text('현재 폰트: $_selectedFontFamily'), onTap: () { _showFontSelector(); },),
           const Divider(height: 30),
 
-          // --- 7-5. 친구 섹션 ---
-          const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 10), child: Text('친구 관리', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
-          ListTile(
-            leading: const Icon(Icons.people_alt),
-            title: const Text('친구 목록 및 추가'),
-            subtitle: const Text('친구 목록 확인, 추가 및 공개된 감정 피드 보기'),
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const FriendFeedPage()),);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.visibility_off),
-            title: const Text('숨겨진 친구 관리'),
-            subtitle: const Text('숨긴 친구 목록을 보거나 다시 표시합니다.'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const HiddenFriendsPage()),
-              );
-            },
-          ),
-          const Divider(height: 30),
-
-          // --- 7-6. 보안 섹션 ---
+          // 5. 보안
           const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 10), child: Text('보안', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
           SwitchListTile(title: const Text('비밀번호 잠금'), subtitle: const Text('앱 실행 시 4/6자리 비밀번호를 요구합니다.'), value: _isPasscodeEnabled, onChanged: (bool value) async {
             if (value) { _showSetPasscodeScreen(initialLength: _currentPinLength); }
@@ -746,144 +611,49 @@ class _SettingsPageState extends State<SettingsPage> {
           if (_isPasscodeEnabled) ListTile(title: const Text('비밀번호 변경'), leading: const Icon(Icons.password), onTap: _showChangePasscodeScreen,),
           const Divider(height: 30),
 
-
-          // --- 7-7. 알림 섹션 ---
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: Text('알림', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-          ),
-
-          // (1) 마스터 스위치
+          // 6. 알림
+          const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 10), child: Text('알림', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
           SwitchListTile(
-            title: const Text("전체 푸시 알림"),
-            subtitle: const Text("앱의 모든 휴대폰 푸시 알림을 켜거나 끕니다."),
-            value: _isAllNotifyEnabled,
-            onChanged: _onAllNotifySwitchChanged,
+            title: const Text("매일 알림 받기"),
+            subtitle: const Text("설정한 시간에 일기 작성을 위한 푸시 알림을 받습니다."),
+            value: _isDailyNotifyEnabled,
+            onChanged: _onDailyNotifySwitchChanged,
           ),
-
-          // (2) 하위 알림 설정 (마스터가 켜져있을 때만 보임)
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 300),
-            crossFadeState: _isAllNotifyEnabled ? CrossFadeState.showFirst : CrossFadeState.showSecond,
-            secondChild: Container(),
-            firstChild: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // (2-1) 매일 푸시 알림
-                SwitchListTile(
-                  title: const Text("매일 알림 받기"),
-                  subtitle: const Text("설정한 시간에 일기 작성을 위한 푸시 알림을 받습니다."),
-                  value: _isDailyNotifyEnabled,
-                  onChanged: _onDailyNotifySwitchChanged,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.access_time),
-                  title: Text("알림 시간: $_notifyTimeString"),
-                  onTap: _onTimeTapped,
-                  enabled: _isDailyNotifyEnabled,
-                ),
-
-                const SizedBox(height: 10),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: Text(
-                      '소셜 푸시 알림 (알림 기록은 항상 저장됩니다)',
-                      style: TextStyle(fontSize: 12, color: Colors.black54)
-                  ),
-                ),
-
-                // (2-2) 친구 요청 알림
-                SwitchListTile(
-                  title: const Text("친구 요청 푸시 알림"),
-                  subtitle: const Text("친구 요청 시 휴대폰 알림을 받습니다."),
-                  value: _isFriendRequestNotifyEnabled,
-                  onChanged: _onFriendRequestNotifySwitchChanged,
-                ),
-
-                // (2-3) 공감 알림
-                SwitchListTile(
-                  title: const Text("공감 푸시 알림"),
-                  subtitle: const Text("내 글에 공감 시 휴대폰 알림을 받습니다."),
-                  value: _isLikeNotifyEnabled,
-                  onChanged: _onLikeNotifySwitchChanged,
-                ),
-
-                // (2-4) 댓글 알림
-                SwitchListTile(
-                  title: const Text("댓글 푸시 알림"),
-                  subtitle: const Text("내 글에 댓글 시 휴대폰 알림을 받습니다."),
-                  value: _isCommentNotifyEnabled,
-                  onChanged: _onCommentNotifySwitchChanged,
-                ),
-              ],
-            ),
+          ListTile(
+            leading: const Icon(Icons.access_time),
+            title: Text("알림 시간: $_notifyTimeString"),
+            onTap: _onTimeTapped,
+            enabled: _isDailyNotifyEnabled,
           ),
           const Divider(height: 30),
 
-
-          // --- 7-8. 도움말 섹션 ---
+          // 7. 지원
           const Padding(padding: EdgeInsets.fromLTRB(16, 10, 16, 10), child: Text('지원', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),),
-          ListTile(leading: const Icon(Icons.help_outline), title: const Text('도움말 및 기능 안내'), subtitle: const Text('AI 채팅, 친구 기능 등 앱 사용법 보기'), onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpPage()),); },),
+          ListTile(leading: const Icon(Icons.help_outline), title: const Text('도움말 및 기능 안내'), subtitle: const Text('AI 채팅 등 앱 사용법 보기'), onTap: () { Navigator.push(context, MaterialPageRoute(builder: (context) => const HelpPage()),); },),
         ],
       ),
     );
   }
 
-  // 폰트 선택 모달
   void _showFontSelector() {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('앱 폰트 선택', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const Divider(),
-              ..._availableFonts.map((font) {
-                return RadioListTile<String>(
-                  title: Text(font == 'SystemDefault' ? '시스템 기본 폰트' : font, style: TextStyle(fontFamily: font == 'SystemDefault' ? null : font),),
-                  value: font,
-                  groupValue: _selectedFontFamily,
-                  onChanged: (String? newValue) {
-                    if (newValue != null) { _saveFontSetting(newValue); }
-                  },
-                );
-              }).toList(),
-            ],
-          ),
-        );
-      },
-    );
+    showModalBottomSheet(context: context, builder: (BuildContext context) {
+      return Container(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('앱 폰트 선택', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Divider(),
+        ..._availableFonts.map((font) {
+          return RadioListTile<String>(title: Text(font == 'SystemDefault' ? '시스템 기본 폰트' : font, style: TextStyle(fontFamily: font == 'SystemDefault' ? null : font),), value: font, groupValue: _selectedFontFamily, onChanged: (String? newValue) { if (newValue != null) { _saveFontSetting(newValue); } },);
+        }).toList(),
+      ],),);
+    },);
   }
 
-  // 테마 선택 모달
   void _showThemeSelector() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: List.generate(pastelColors.length, (i) {
-              final color = pastelColors[i];
-              final isSelected = i == _selectedColorIndex;
-              return GestureDetector(
-                onTap: () async { await _saveThemeSetting(i); },
-                child: Container(
-                  width: 45, height: 45,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: isSelected ? Colors.black : Colors.grey.shade300, width: 3,),),
-                ),
-              );
-            }),
-          ),
-        );
-      },
-    );
+    showModalBottomSheet(context: context, backgroundColor: Colors.white, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (_) {
+      return Padding(padding: const EdgeInsets.all(16), child: Wrap(spacing: 10, runSpacing: 10, children: List.generate(pastelColors.length, (i) {
+        final color = pastelColors[i];
+        final isSelected = i == _selectedColorIndex;
+        return GestureDetector(onTap: () async { await _saveThemeSetting(i); }, child: Container(width: 45, height: 45, decoration: BoxDecoration(color: color, shape: BoxShape.circle, border: Border.all(color: isSelected ? Colors.black : Colors.grey.shade300, width: 3,),),),);
+      }),),);
+    },);
   }
 }

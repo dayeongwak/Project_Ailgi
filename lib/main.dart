@@ -1,5 +1,3 @@
-// lib/main.dart (FCM 초기화 및 토큰 저장 로직 추가)
-
 import 'package:flutter/material.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -13,23 +11,19 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
-// ✅ [FCM 추가] Firebase Messaging 및 Firestore 임포트
+// FCM
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
-// ✅ [FCM 추가] 앱이 백그라운드/종료 상태일 때 메시지를 처리하기 위한 최상위 함수
+// 백그라운드 메시지 핸들러
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // 백그라운드 격리(isolate)에서 실행되므로 Firebase를 다시 초기화해야 합니다.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print("🔔 [FCM] Handling a background message: ${message.messageId}");
-  // (참고: 여기서는 data-only 메시지 처리에 유용합니다.
-  //  notification 페이로드는 FCM이 자동으로 표시합니다.)
 }
 
-
 const String FONT_FAMILY_KEY = '_app_font_family';
+const String KEY_THEME_COLOR = '_theme_color_index'; // ✅ [추가] 테마 키
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,15 +32,15 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ✅ [FCM 추가] 백그라운드 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
-  await NotificationService().init(); // 로컬 알림 서비스 초기화
+  await NotificationService().init();
+
   final micStatus = await Permission.microphone.request();
   if (micStatus.isDenied) {
-    debugPrint("⚠️ 마이크 권한이 거부되었습니다. 음성 인식이 제한됩니다.");
+    debugPrint("⚠️ 마이크 권한이 거부되었습니다.");
   }
 
   runApp(const AilgiApp());
@@ -60,27 +54,65 @@ class AilgiApp extends StatefulWidget {
 }
 
 class _AilgiAppState extends State<AilgiApp> {
-  Color _themeColor = const Color(0xFFF0F8FF);
+  Color _themeColor = Colors.white; // 기본값
   String _appFontFamily = 'SystemDefault';
-
   String? _currentUid;
+
+  // ✅ [추가] SettingsPage와 동일한 색상 리스트 (저장된 번호로 색상을 찾기 위해 필요)
+  final List<Color> pastelColors = [
+    Colors.white, const Color(0xFFF8F8F8), const Color(0xFFF0F0F0),
+    const Color(0xFFEAEAEA), const Color(0xFFDCDCDC), const Color(0xFFC0C0C0),
+    const Color(0xFFA9A9A9), const Color(0xFFFFF5F7), const Color(0xFFFFE8ED),
+    const Color(0xFFFFD3DC), const Color(0xFFFFB7C7), const Color(0xFFFF9BB3),
+    const Color(0xFFFF86A5), const Color(0xFFFF6F91), const Color(0xFFFFFEF2),
+    const Color(0xFFFFF9DB), const Color(0xFFFFF1B8), const Color(0xFFFFE590),
+    const Color(0xFFFFD86E), const Color(0xFFFFCD59), const Color(0xFFFFC240),
+    const Color(0xFFF1FFF8), const Color(0xFFE0FFF0), const Color(0xFFC9FBE3),
+    const Color(0xFFB0F3D4), const Color(0xFF97E7C2), const Color(0xFF7ED9B0),
+    const Color(0xFF64CB9F), const Color(0xFFF0F8FF), const Color(0xFFDDF0FF),
+    const Color(0xFFC3E5FF), const Color(0xFFA4D6FF), const Color(0xFF86C7FF),
+    const Color(0xFF6AB8FF), const Color(0xFF4CA9FF), const Color(0xFFFBF7FF),
+    const Color(0xFFF1E6FF), const Color(0xFFE1CEFF), const Color(0xFFCBAEFF),
+    const Color(0xFFB291FF), const Color(0xFFA07EFF), const Color(0xFF8D6BE8),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _listenToAuthChanges(); // 로그인 상태 변경 구독 시작
+    _loadSavedTheme(); // ✅ [중요] 앱 시작 시 저장된 테마 로드
+    _listenToAuthChanges();
   }
 
-  // ✅ [수정됨] 로그인 상태 변경 시 FCM 초기화 호출
+  // ✅ [신규] 저장된 테마(색상, 폰트)를 불러오는 함수
+  Future<void> _loadSavedTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    // 1. 폰트 로드
+    final fontKey = "${uid ?? 'GUEST'}$FONT_FAMILY_KEY";
+    final savedFont = prefs.getString(fontKey) ?? 'SystemDefault';
+
+    // 2. 색상 로드 (인덱스 번호로 저장됨)
+    final themeKey = "${uid ?? 'GUEST'}$KEY_THEME_COLOR";
+    final savedColorIndex = prefs.getInt(themeKey) ?? 0;
+
+    if (mounted) {
+      setState(() {
+        _appFontFamily = savedFont;
+        // 저장된 번호가 유효하면 색상 적용
+        if (savedColorIndex >= 0 && savedColorIndex < pastelColors.length) {
+          _themeColor = pastelColors[savedColorIndex];
+        }
+      });
+    }
+  }
+
   void _listenToAuthChanges() {
     FirebaseAuth.instance.authStateChanges().listen((user) {
       final newUid = user?.uid;
-
       if (newUid != _currentUid) {
         _currentUid = newUid;
-        _loadFontFamily(); // 폰트 설정을 새로 로드
-
-        // ✅ [FCM 추가] 사용자가 로그인하면(newUid != null) FCM 초기화 및 토큰 저장
+        _loadSavedTheme(); // ✅ 로그인 사용자 변경 시 해당 사용자의 테마 로드
         if (newUid != null) {
           _initFCM();
         }
@@ -88,92 +120,43 @@ class _AilgiAppState extends State<AilgiApp> {
     });
   }
 
-  // ▼▼▼ [FCM 신규] FCM 초기화 (권한 요청, 포그라운드 리스너, 토큰) ▼▼▼
   Future<void> _initFCM() async {
     final messaging = FirebaseMessaging.instance;
-    final firestore = FirebaseFirestore.instance;
+    await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-    // 1. (iOS, Android 13+) 푸시 알림 권한 요청
-    NotificationSettings settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-    print('🔔 [FCM] User granted permission: ${settings.authorizationStatus}');
-
-    // 2. 앱이 켜져있을 때(포그라운드) 알림 처리
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('🔔 [FCM] Got a message whilst in the foreground!');
-
       if (message.notification != null) {
-        print('🔔 [FCM] Notification: ${message.notification?.title} / ${message.notification?.body}');
-
-        // (선택사항) 앱이 켜져 있을 때도 로컬 알림으로 띄우기
-        // (현재 로컬 알림 서비스가 설정되어 있으므로 이를 활용합니다)
         NotificationService().showSimpleNotification(
           title: message.notification?.title ?? "새 알림",
           body: message.notification?.body ?? "",
+          uid: _currentUid, // 알림 기록 저장을 위해 UID 전달
         );
       }
     });
 
-    // 3. 토큰 저장 및 갱신 리스너 등록
-    _getAndSaveToken(); // 앱 시작 시 토큰 저장
-    messaging.onTokenRefresh.listen(_getAndSaveToken); // 토큰 갱신 시 저장
+    _getAndSaveToken();
+    messaging.onTokenRefresh.listen(_getAndSaveToken);
   }
 
-  // ▼▼▼ [FCM 신규] FCM 토큰을 가져와 Firestore에 저장 ▼▼▼
   Future<void> _getAndSaveToken([String? token]) async {
-    if (_currentUid == null) {
-      print("🔔 [FCM] User not logged in. Token save skipped.");
-      return; // 로그인이 안 되어있으면 저장 안 함
-    }
-
+    if (_currentUid == null) return;
     final fcmToken = token ?? await FirebaseMessaging.instance.getToken();
-
-    if (fcmToken == null) {
-      print("🔔 [FCM] Unable to get FCM token.");
-      return;
-    }
-
-    print("🔔 [FCM] Token: $fcmToken");
+    if (fcmToken == null) return;
 
     try {
-      // 'users' 컬렉션의 내 문서에 fcmToken 필드를 업데이트(또는 생성)
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUid)
-          .set({
+      await FirebaseFirestore.instance.collection('users').doc(_currentUid).set({
         'fcmToken': fcmToken,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      print("🔔 [FCM] Token saved to Firestore for user: $_currentUid");
     } catch (e) {
-      print("🔔 [FCM] Error saving token to Firestore: $e");
+      print("Error saving token: $e");
     }
   }
-  // ▲▲▲ [FCM 신규] FCM 토큰 저장 로직 ▲▲▲
 
-
+  // SettingsPage에서 색상을 바꿨을 때 호출됨
   void _updateTheme(Color newColor) {
     setState(() => _themeColor = newColor);
-    _loadFontFamily();
-  }
-
-  Future<void> _loadFontFamily() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = "${_currentUid ?? 'GUEST'}$FONT_FAMILY_KEY";
-
-    if (mounted) {
-      setState(() {
-        _appFontFamily = prefs.getString(key) ?? 'SystemDefault';
-      });
-    }
+    _loadSavedTheme(); // 폰트 등 다른 설정도 확실하게 동기화
   }
 
   @override
@@ -184,10 +167,15 @@ class _AilgiAppState extends State<AilgiApp> {
       debugShowCheckedModeBanner: false,
       title: 'Ailgi',
       theme: ThemeData(
+        // ✅ [핵심] 앱 전체의 기본 색상과 배경색을 강제로 지정하여 통일감 부여
         colorScheme: ColorScheme.fromSeed(
           seedColor: _themeColor,
           brightness: Brightness.light,
+          primary: _themeColor,
+          surface: _themeColor,
+          background: _themeColor,
         ),
+        scaffoldBackgroundColor: _themeColor, // 모든 페이지 배경색 통일
         fontFamily: font,
         appBarTheme: AppBarTheme(
           elevation: 0,
@@ -197,12 +185,6 @@ class _AilgiAppState extends State<AilgiApp> {
         floatingActionButtonTheme: FloatingActionButtonThemeData(
           backgroundColor: _themeColor.computeLuminance() > 0.5 ? Colors.grey.shade800 : _themeColor,
           foregroundColor: _themeColor.computeLuminance() > 0.5 ? Colors.white : Colors.black,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _themeColor.computeLuminance() > 0.5 ? Colors.grey.shade800 : _themeColor,
-            foregroundColor: _themeColor.computeLuminance() > 0.5 ? Colors.white : Colors.black,
-          ),
         ),
         useMaterial3: true,
       ),

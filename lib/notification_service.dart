@@ -1,12 +1,9 @@
-// lib/notification_service.dart
-
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-// 친구 관련 키 삭제됨
-const String KEY_ALL_NOTIFY_ENABLED = '_all_notify_enabled';
 const String KEY_DAILY_NOTIFY_ENABLED = '_daily_push_notify_enabled';
 const String KEY_NOTIFY_TIME = '_notify_time';
 
@@ -23,6 +20,11 @@ class NotificationService {
 
   Future<void> init() async {
     tz.initializeTimeZones();
+    try {
+      tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
+    } catch (e) {
+      print("Timezone setup error: $e");
+    }
 
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwin = DarwinInitializationSettings(
@@ -38,19 +40,38 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
 
     if (androidImpl != null) {
-      final granted = await androidImpl.requestNotificationsPermission();
-      print("🔔 Notification permission granted: $granted");
+      await androidImpl.requestNotificationsPermission();
+      await androidImpl.requestExactAlarmsPermission();
     }
   }
 
-  /// 🔔 매일 알림 예약 (UID 필요)
+  // ✅ [수정됨] 알림 내역 저장 시 제목(title)도 함께 저장
+  Future<void> _saveNotificationToHistory(String? uid, String title, String body, String type) async {
+    if (uid == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('notifications')
+          .add({
+        'type': type,
+        'fromNickname': 'Ailgi',
+        'title': title, // 저장할 때 제목 포함
+        'body': body,
+        'read': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      print("✅ Notification saved: $title");
+    } catch (e) {
+      print("❌ Failed to save notification: $e");
+    }
+  }
+
   Future<void> scheduleDailyNotification(String? uid) async {
     final prefs = await SharedPreferences.getInstance();
-
-    final allEnabled = prefs.getBool(_getPrefKey(uid, KEY_ALL_NOTIFY_ENABLED)) ?? true;
     final dailyEnabled = prefs.getBool(_getPrefKey(uid, KEY_DAILY_NOTIFY_ENABLED)) ?? true;
 
-    if (!allEnabled || !dailyEnabled) {
+    if (!dailyEnabled) {
       await _plugin.cancel(0);
       return;
     }
@@ -61,89 +82,66 @@ class NotificationService {
     final minute = int.parse(parts[1]);
 
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }
 
     await _plugin.zonedSchedule(
-      0, // 매일 알림 ID
+      0,
       '오늘의 일기를 써볼까요? ✍️',
       'Ailgi가 기다리고 있어요 💬',
       scheduled,
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'ailgi_daily_channel',
-          'Ailgi Daily',
-          channelDescription: 'Ailgi 매일 알림',
+          'ailgi_daily_channel_v2',
+          'Ailgi Daily Reminder',
+          channelDescription: '매일 일기 쓰기 알림',
           importance: Importance.max,
           priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
         ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
+        iOS: DarwinNotificationDetails(presentAlert: true, presentBadge: true, presentSound: true),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
-      uiLocalNotificationDateInterpretation:
-      UILocalNotificationDateInterpretation.absoluteTime,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
-  // 친구, 공감, 댓글 알림 메서드 삭제됨
-
-  /// 🔁 설정 변경 시 재예약 (UID 필요)
   Future<void> rescheduleNotification(String? uid) async {
     await _plugin.cancel(0);
     await scheduleDailyNotification(uid);
   }
 
-  /// ❌ 알림 전체 취소
   Future<void> cancelAllNotifications() async {
     await _plugin.cancelAll();
   }
 
-  /// 📱 (FCM용) 앱이 켜져있을 때 간단한 알림 띄우기
   Future<void> showSimpleNotification({
     required String title,
     required String body,
     String payload = '',
+    String? uid,
   }) async {
-    const int foregroundNotificationId = 99; // 포그라운드 전용 ID
-
-    const String channelId = 'ailgi_fcm_foreground_channel';
-    const String channelName = 'Ailgi 실시간 알림';
-    const String channelDescription = '앱 사용 중 도착하는 실시간 알림';
-
+    const int foregroundNotificationId = 99;
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
-        channelId,
-        channelName,
-        channelDescription: channelDescription,
+        'ailgi_fcm_foreground',
+        'Ailgi Realtime',
+        channelDescription: '실시간 알림',
         importance: Importance.high,
         priority: Priority.high,
       ),
-      iOS: DarwinNotificationDetails(
-        presentAlert: true,
-        presentSound: true,
-      ),
+      iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
     );
 
-    await _plugin.show(
-      foregroundNotificationId,
-      title,
-      body,
-      details,
-      payload: payload,
-    );
+    await _plugin.show(foregroundNotificationId, title, body, details, payload: payload);
+
+    if (uid != null) {
+      // ✅ 알림 발송 시 제목을 그대로 DB에 저장 (system 타입)
+      await _saveNotificationToHistory(uid, title, body, 'system');
+    }
   }
 }

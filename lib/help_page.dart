@@ -24,7 +24,7 @@ class HelpPage extends StatefulWidget {
 }
 
 class _HelpPageState extends State<HelpPage> {
-  // ✅ 현재 기능에 딱 맞춘 도움말 항목
+  // ✅ 군더더기 없이 현재 기능만 명시한 도움말 항목
   final List<HelpTopic> _allTopics = [
     HelpTopic(
         title: "AI 채팅 및 일기",

@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'package:flutter/material.dart'; // 👈 이 import가 핵심입니다
+import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ✅ 1. Firebase 패키지 임포트
+// Firebase 패키지
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -22,7 +22,10 @@ class _StatisticsPageState extends State<StatisticsPage> {
   Color _themeColor = Colors.white;
   Color _textColor = Colors.black;
 
-  // ✅ 2. Firebase 인스턴스
+  // ✅ [신규] 현재 보고 있는 달을 관리하는 변수
+  late DateTime _currentMonth;
+
+  // Firebase 인스턴스
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
   String? get _uid => _auth.currentUser?.uid;
@@ -30,11 +33,20 @@ class _StatisticsPageState extends State<StatisticsPage> {
   @override
   void initState() {
     super.initState();
+    // 초기 달 설정
+    _currentMonth = widget.initialMonth;
+
     _loadTheme();
-    _loadData(); // ✅ Firestore에서 읽도록 수정됨
+    _loadData();
   }
 
-  /// 테마 색상 로드 (SharedPreferences 유지 - 변경 없음)
+  // ✅ [신규] 달 변경 함수 (+1달 또는 -1달)
+  void _changeMonth(int offset) {
+    setState(() {
+      _currentMonth = DateTime(_currentMonth.year, _currentMonth.month + offset);
+    });
+  }
+
   Future<void> _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final index = prefs.getInt("calendar_color_index") ?? 0;
@@ -56,7 +68,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
     ];
 
     final color = pastelColors[index % pastelColors.length];
-    // 🎨 computeLuminance()가 더 정확합니다.
     final textColor = color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
 
     setState(() {
@@ -65,7 +76,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
     });
   }
 
-  /// ✅ 3. (수정) Firestore에서 감정 데이터 로드
   Future<void> _loadData() async {
     if (_uid == null) {
       setState(() => _isLoading = false);
@@ -75,16 +85,14 @@ class _StatisticsPageState extends State<StatisticsPage> {
     final emotions = <String, String>{};
 
     try {
-      // 'users/{uid}/diaries' 컬렉션 전체를 가져옴
       final snapshot = await _firestore
           .collection('users')
           .doc(_uid)
           .collection('diaries')
           .get();
 
-      // 가져온 데이터로 _emotions 맵을 채움
       for (final doc in snapshot.docs) {
-        final dateKey = doc.id; // "2025-10-28"
+        final dateKey = doc.id;
         final data = doc.data();
         final emotion = data['emotion'] as String?;
 
@@ -104,8 +112,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
     }
   }
 
-
-  /// 감정 → 카테고리 변환 (변경 없음)
   String _emotionToCategory(String emotion) {
     const positive = [
       "기쁨","사랑","희망","감사","만족","열정","자신감","뿌듯","환희","즐거움",
@@ -116,16 +122,15 @@ class _StatisticsPageState extends State<StatisticsPage> {
       "외로움", "스트레스", "긴장", "공허", "질투", "실망", "분노", "초조",
       "무서움", "포기"
     ];
-    // (위 리스트에 없는 '평온', '놀람' 등은 '중립'으로 처리됨)
     if (positive.contains(emotion)) return "긍정";
     if (negative.contains(emotion)) return "부정";
     return "중립";
   }
 
-  /// 카테고리별 개수 집계 (변경 없음)
   Map<String, int> _countEmotionCategories() {
-    final monthKey = DateFormat('yyyy-MM').format(widget.initialMonth);
-    // _emotions 맵의 key (e.g., "2025-10-28")가 monthKey("2025-10")로 시작하는지 확인
+    // ✅ [수정] widget.initialMonth 대신 _currentMonth 사용
+    final monthKey = DateFormat('yyyy-MM').format(_currentMonth);
+
     final monthData = _emotions.entries
         .where((e) => e.key.startsWith(monthKey))
         .toList();
@@ -140,7 +145,8 @@ class _StatisticsPageState extends State<StatisticsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final monthTitle = DateFormat('yyyy년 MM월').format(widget.initialMonth);
+    // ✅ [수정] 현재 보고 있는 달을 기준으로 제목 표시
+    final monthTitle = DateFormat('yyyy년 MM월').format(_currentMonth);
     final counts = _countEmotionCategories();
     final total = counts.values.reduce((a, b) => a + b);
 
@@ -151,11 +157,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
         title: total == 0
             ? ""
             : "${((counts["긍정"]! / total) * 100).toStringAsFixed(1)}%",
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
+        titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
         radius: 140,
         titlePositionPercentageOffset: 0.6,
       ),
@@ -165,11 +167,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
         title: total == 0
             ? ""
             : "${((counts["중립"]! / total) * 100).toStringAsFixed(1)}%",
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
+        titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
         radius: 140,
         titlePositionPercentageOffset: 0.6,
       ),
@@ -179,11 +177,7 @@ class _StatisticsPageState extends State<StatisticsPage> {
         title: total == 0
             ? ""
             : "${((counts["부정"]! / total) * 100).toStringAsFixed(1)}%",
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
+        titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
         radius: 140,
         titlePositionPercentageOffset: 0.6,
       ),
@@ -192,47 +186,80 @@ class _StatisticsPageState extends State<StatisticsPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: _themeColor,
-        title: Text("📊 $monthTitle 감정 통계", style: TextStyle(color: _textColor)),
         iconTheme: IconThemeData(color: _textColor),
+        centerTitle: true,
+        // ✅ [신규] 앱바 제목에 화살표 버튼 추가
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(Icons.chevron_left, color: _textColor),
+              onPressed: () => _changeMonth(-1), // 이전 달
+            ),
+            Text(
+              monthTitle, // "2025년 10월"
+              style: TextStyle(color: _textColor, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            IconButton(
+              icon: Icon(Icons.chevron_right, color: _textColor),
+              onPressed: () => _changeMonth(1), // 다음 달
+            ),
+          ],
+        ),
       ),
-      // ✅ 4. (수정) 배경색 적용
-      body: Container(
-        color: _themeColor.withOpacity(0.5), // 은은한 배경색
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : total == 0
-            ? Center(
-          child: Text(
-            "이 달에는 감정 데이터가 없습니다 🕓",
-            style: TextStyle(fontSize: 16, color: _textColor),
-          ),
-        )
-            : Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 400,
-                height: 400,
-                child: PieChart(
-                  PieChartData(
-                    sections: sections,
-                    centerSpaceRadius: 25,
-                    sectionsSpace: 0,
-                    startDegreeOffset: -90,
+      body: GestureDetector(
+        // ✅ [신규] 화면을 좌우로 밀어서(스와이프) 달 변경 기능 추가
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity! > 0) {
+            _changeMonth(-1); // 오른쪽으로 밀면 이전 달
+          } else if (details.primaryVelocity! < 0) {
+            _changeMonth(1); // 왼쪽으로 밀면 다음 달
+          }
+        },
+        child: Container(
+          color: _themeColor.withOpacity(0.5),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : total == 0
+              ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.pie_chart_outline, size: 60, color: _textColor.withOpacity(0.3)),
+                const SizedBox(height: 16),
+                Text(
+                  "이 달에는 감정 데이터가 없습니다 🕓",
+                  style: TextStyle(fontSize: 16, color: _textColor),
+                ),
+              ],
+            ),
+          )
+              : Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 400,
+                  height: 400,
+                  child: PieChart(
+                    PieChartData(
+                      sections: sections,
+                      centerSpaceRadius: 25,
+                      sectionsSpace: 0,
+                      startDegreeOffset: -90,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              _buildLegend(),
-            ],
+                const SizedBox(height: 24),
+                _buildLegend(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  /// 범례 (변경 없음)
   Widget _buildLegend() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -247,7 +274,6 @@ class _StatisticsPageState extends State<StatisticsPage> {
   }
 }
 
-/// ✅ 범례 아이템 (수정됨 - textColor)
 class _LegendItem extends StatelessWidget {
   final Color color;
   final String label;
@@ -270,7 +296,6 @@ class _LegendItem extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          // ✅ 배경색이 어두울 때 글씨가 안보이는 문제 해결
           style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.9)),
         ),
       ],

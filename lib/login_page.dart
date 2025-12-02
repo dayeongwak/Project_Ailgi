@@ -1,9 +1,7 @@
-// lib/login_page.dart (구글 로그인 시 Firestore에 이메일 저장 기능 추가)
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Firestore 임포트
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'register_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'find_account_page.dart';
@@ -23,7 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance; // ✅ Firestore 인스턴스
+  final _firestore = FirebaseFirestore.instance;
   bool _isPasswordObscured = true;
   bool _rememberMe = false;
 
@@ -61,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // 이메일/비밀번호 로그인 로직 (완성)
+  // 이메일/비밀번호 로그인 로직
   Future<void> _signInWithUsername() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
@@ -96,7 +94,7 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('로그인 중 알 수 없는 오류가 발생했습니다.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인 중 알 수 없는 오류가 발생했습니다.')));
     } finally {
       if (mounted) {
         setState(() {
@@ -106,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // 구글 로그인 로직 (수정됨)
+  // 구글 로그인 로직
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
@@ -125,14 +123,12 @@ class _LoginPageState extends State<LoginPage> {
         idToken: googleAuth.idToken,
       );
 
-      // 1. Firebase 로그인
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
       final User? user = userCredential.user;
 
       if (user != null) {
-        // 2. ✅ Firestore에 이메일 정보 저장 (SetOptions(merge: true)로 덮어쓰지 않음)
         await _firestore.collection('users').doc(user.uid).set(
-            { 'email': user.email }, // 구글 계정의 이메일을 저장
+            { 'email': user.email },
             SetOptions(merge: true)
         );
       }
@@ -161,14 +157,12 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // 아이디/비밀번호 찾기 함수
   void _findAccount() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const FindAccountPage()),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +237,14 @@ class _LoginPageState extends State<LoginPage> {
 
                     TextButton(
                       onPressed: _findAccount,
-                      child: const Text('아이디/비밀번호 찾기', style: TextStyle(fontWeight: FontWeight.normal, fontSize: 13)),
+                      child: const Text(
+                        '아이디/비밀번호 찾기',
+                        style: TextStyle(
+                          fontWeight: FontWeight.normal,
+                          fontSize: 13,
+                          color: Colors.black, // 검은색 고정
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -276,11 +277,15 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 40),
 
-                // 7. 회원가입 버튼/텍스트
+                // 7. 회원가입 버튼/텍스트 (수정됨: 색상 명시)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('아직 계정이 없으신가요?'),
+                    // "아직 계정이 없으신가요?" -> 검은색
+                    const Text(
+                        '아직 계정이 없으신가요?',
+                        style: TextStyle(color: Colors.black)
+                    ),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -288,7 +293,14 @@ class _LoginPageState extends State<LoginPage> {
                           MaterialPageRoute(builder: (context) => const RegisterPage()),
                         );
                       },
-                      child: const Text('회원가입', style: TextStyle(fontWeight: FontWeight.bold)),
+                      // "회원가입" -> 파란색 볼드체
+                      child: const Text(
+                          '회원가입',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueAccent
+                          )
+                      ),
                     ),
                   ],
                 ),
